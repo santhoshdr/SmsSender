@@ -9,13 +9,12 @@ public class NotificationRequest  implements Serializable{
      */
     private static final long serialVersionUID = 2358050464685162683L;
     
-    
     private Long notificationId;
 
     private String emailid;
     
     private String template;
-
+    
     
     public NotificationRequest(Long notificationId, String emailid, String template) {
         super();

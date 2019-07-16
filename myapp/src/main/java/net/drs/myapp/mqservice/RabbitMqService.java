@@ -10,8 +10,12 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.PostConstruct;
 
+import net.drs.myapp.service.ISendNotification;
+
+import org.hibernate.service.spi.InjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +44,9 @@ public class RabbitMqService implements IRabbitMqService {
 	private static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper()
 			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
+	@Autowired
+	private ISendNotification sendNotification;
+	
 	private static final String MQ_HOST = "localhost";
 
 	private List<Channel> channels = new ArrayList<>();
@@ -111,7 +118,11 @@ public class RabbitMqService implements IRabbitMqService {
 				System.out.println(" [x] Received '" + message + "'");
 
 				NotificationRequest notificationReq = DEFAULT_OBJECT_MAPPER
-						.readValue(message, NotificationRequest.class);
+						.readValue(message, NotificationRequest.class); 
+				
+				
+				sendNotification.sendSMSNotification(notificationReq);
+				
 				System.out.println(notificationReq.getNotificationId());
 				System.out.println(notificationReq.getEmailid());
 				System.out.println(notificationReq.getTemplate());
