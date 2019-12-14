@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
@@ -10,7 +11,7 @@
 	</parent>
 	<groupId>net.drs</groupId>
 	<artifactId>myapp</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>notifier</version>
 	<name>myapp</name>
 	<description>Demo project for Spring Boot</description>
 
@@ -56,15 +57,6 @@
 			<version>0.5.5</version>
 		</dependency>
 
-
-		<dependency>
-			<groupId>net.drs.myapp</groupId>
-			<artifactId>app</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-			<scope>runtime</scope>
-		</dependency>
-
-
 		<!-- https://mvnrepository.com/artifact/org.springframework.session/spring-session -->
 		<dependency>
 			<groupId>org.springframework.session</groupId>
@@ -84,6 +76,14 @@
 			<artifactId>amqp-client</artifactId>
 			<version>5.5.1</version>
 		</dependency>
+
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>8.0.17</version>
+		</dependency>
+
+
 	</dependencies>
 
 	<build>

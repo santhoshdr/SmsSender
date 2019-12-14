@@ -7,12 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
-
 import javax.annotation.PostConstruct;
-
-import net.drs.myapp.service.ISendNotification;
-
-import org.hibernate.service.spi.InjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,155 +26,136 @@ import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.DeliverCallback;
 import com.rabbitmq.client.Envelope;
 
+import net.drs.myapp.service.ISendNotification;
+
 @Component
 @Repository("rabbitMqService")
 @Transactional
 public class RabbitMqService implements IRabbitMqService {
 
-	private static final Logger LOG = LoggerFactory
-			.getLogger(RabbitMqService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RabbitMqService.class);
 
-	private static final String EXCHANGE_NAME = "pub-sub-queue";
+    private static final String EXCHANGE_NAME = "pub-sub-queue";
 
-	private static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper()
-			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+    private static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper().disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
 
-	@Autowired
-	private ISendNotification sendNotification;
-	
-	private static final String MQ_HOST = "localhost";
+    @Autowired
+    private ISendNotification sendNotification;
 
-	private List<Channel> channels = new ArrayList<>();
-	private static final Map<String, Object> QUEUE_ARGS = new HashMap<>();
+    private static final String MQ_HOST = "172.17.0.3";
 
-	@PostConstruct
-	public void postConsrtuct() {
+    private List<Channel> channels = new ArrayList<>();
+    
+    private static final Map<String, Object> QUEUE_ARGS = new HashMap<>();
 
-		MqUtils.manageCheckedExceptions(new Callable<Void>() {
-			@Override
-			public Void call() throws Exception {
+    @PostConstruct
+    public void postConsrtuct() {
 
-				initializeMq();
+        MqUtils.manageCheckedExceptions(new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
+                initializeMq();
+                return null;
+            }
+        });
+    }
+    public void initializeMq() {
+        try {
+            receiveSMSMQMessage();
+        } catch (Exception e) {
+            LOG.error("Error Occurred during initialization of channel");
+        }
+    }
 
-				return null;
-			}
-		});
-	}
+    @Override
+    public void publishSMSMessage(String smsmessage, String number) {
 
-	public void initializeMq() {
-		try {
-			receiveSMSMQMessage();
-		} catch (Exception e) {
-			LOG.error("Error Occurred during initialization of channel");
-		}
-	}
+        LOG.info("Publishing message to MQ: SMS message {} , number {} ", smsmessage, number);
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost(MQ_HOST);
+        Map<String, String> message = new HashMap<String, String>();
+        message.put(number, smsmessage);
+        try (Connection connection = factory.newConnection(); Channel channel = connection.createChannel()) {
+            channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.FANOUT);
+            channel.basicPublish(EXCHANGE_NAME, "", null, message.toString().getBytes());
+        } catch (IOException | TimeoutException e) {
+            LOG.error("Exception Occurred while creating MQ connection");
+            e.printStackTrace();
+        }
+    }
 
-	@Override
-	public void publishSMSMessage(String smsmessage, String number) {
+    public String receiveSMSMQMessage() {
 
-		LOG.info("Publishing message to MQ: SMS message {} , number {} ",
-				smsmessage, number);
-		ConnectionFactory factory = new ConnectionFactory();
-		factory.setHost(MQ_HOST);
-		Map<String, String> message = new HashMap<String, String>();
-		message.put(number, smsmessage);
-		try (Connection connection = factory.newConnection();
-				Channel channel = connection.createChannel()) {
-			channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.FANOUT);
-			channel.basicPublish(EXCHANGE_NAME, "", null, message.toString()
-					.getBytes());
-		} catch (IOException | TimeoutException e) {
-			LOG.error("Exception Occurred while creating MQ connection");
-			e.printStackTrace();
-		}
-	}
+        try {
+            System.out.println(" Inside receiveSMSMQMessage ");
+            ConnectionFactory factory = new ConnectionFactory();
+            factory.setHost(MQ_HOST);
+            Connection connection;
+            connection = factory.newConnection();
+            Channel channel = connection.createChannel();
+            channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.FANOUT);
+            String queueName = channel.queueDeclare().getQueue();
+            channel.queueBind(queueName, EXCHANGE_NAME, "");
 
-	public String receiveSMSMQMessage() {
+            System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
 
-		try {
+            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+                delivery.getBody();
+                String message = new String(delivery.getBody(), "UTF-8");
+                System.out.println(" [x] Received '" + message + "'");
 
-			ConnectionFactory factory = new ConnectionFactory();
-			factory.setHost(MQ_HOST);
-			Connection connection;
-			connection = factory.newConnection();
-			Channel channel = connection.createChannel();
+                NotificationRequest notificationReq = DEFAULT_OBJECT_MAPPER.readValue(message, NotificationRequest.class);
 
-			channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.FANOUT);
+                sendNotification.sendSMSNotification(notificationReq);
+                System.out.println(notificationReq.getNotificationId());
+                System.out.println(notificationReq.getEmailid());
+                System.out.println(notificationReq.getTemplate());
+            };
+            channel.basicConsume(queueName, true, deliverCallback, consumerTag -> {
+            });
 
-			String queueName = channel.queueDeclare().getQueue();
-			channel.queueBind(queueName, EXCHANGE_NAME, "");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (TimeoutException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    /*
+     * private final class SmsMqConsumer extends DefaultConsumer {
+     * 
+     * private SmsMqConsumer(Channel channel) { super(channel); }
+     * 
+     * @Override public void handleDelivery(String consumerTag, Envelope
+     * envelope, AMQP.BasicProperties props, byte[] body) throws IOException {
+     * 
+     * }; } }
+     */
+    public static void main(String args[]) {
+        RabbitMqService mq = new RabbitMqService();
+        mq.publishSMSMessage("hi", "asdasd");
+    }
 
-			System.out
-					.println(" [*] Waiting for messages. To exit press CTRL+C");
+    private final class DmMqConsumer extends DefaultConsumer {
 
-			DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-				delivery.getBody();
-				String message = new String(delivery.getBody(), "UTF-8");
-				System.out.println(" [x] Received '" + message + "'");
+        private DmMqConsumer(Channel channel) {
+            super(channel);
+        }
 
-				NotificationRequest notificationReq = DEFAULT_OBJECT_MAPPER
-						.readValue(message, NotificationRequest.class); 
-				
-				
-				sendNotification.sendSMSNotification(notificationReq);
-				
-				System.out.println(notificationReq.getNotificationId());
-				System.out.println(notificationReq.getEmailid());
-				System.out.println(notificationReq.getTemplate());
+        @Override
+        public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties props, byte[] body) throws IOException {
 
-			};
-			channel.basicConsume(queueName, true, deliverCallback,
-					consumerTag -> {
-					});
+            MqUtils.manageAcknoledgement(envelope, getChannel(), new Callable<Void>() {
 
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (TimeoutException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
+                @Override
+                public Void call() throws Exception {
+                    String event = new String(body, MqStatics.ENCODING);
+                    System.out.println("========================" + event);
 
-	/*
-	 * private final class SmsMqConsumer extends DefaultConsumer {
-	 * 
-	 * private SmsMqConsumer(Channel channel) { super(channel); }
-	 * 
-	 * @Override public void handleDelivery(String consumerTag, Envelope
-	 * envelope, AMQP.BasicProperties props, byte[] body) throws IOException {
-	 * 
-	 * }; } }
-	 */
-
-	public static void main(String args[]) {
-
-		RabbitMqService mq = new RabbitMqService();
-		mq.publishSMSMessage("hi", "asdasd");
-	}
-
-	private final class DmMqConsumer extends DefaultConsumer {
-
-		private DmMqConsumer(Channel channel) {
-			super(channel);
-		}
-
-		@Override
-		public void handleDelivery(String consumerTag, Envelope envelope,
-				AMQP.BasicProperties props, byte[] body) throws IOException {
-
-			MqUtils.manageAcknoledgement(envelope, getChannel(),
-					new Callable<Void>() {
-
-						@Override
-						public Void call() throws Exception {
-							String event = new String(body, MqStatics.ENCODING);
-							System.out.println("========================"
-									+ event);
-
-							return null;
-						}
-					});
-		}
-	}
+                    return null;
+                }
+            });
+        }
+    }
 
 }

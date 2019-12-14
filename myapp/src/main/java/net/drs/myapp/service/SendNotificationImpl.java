@@ -18,20 +18,13 @@ public class SendNotificationImpl implements ISendNotification {
 
 	@Override
 	public void sendSMSNotification(NotificationRequest notificationRequest) {
-		
-		// Send SMS Notification Here.............
-		
-		
-		
 		int result = entityManager.createNativeQuery("update email_notification set EMAIL_MESSAGE_SENT = 'true' where id=:id").setParameter("id", notificationRequest.getNotificationId()).executeUpdate();
 		System.out.println("RESULT " + result);
-	
 	}
 
 	@Override
 	public void sendEmailNotification(NotificationRequest notificationRequest) {
-		// TODO Auto-generated method stub
-
+	    System.out.println("RESULT " + notificationRequest.getEmailid());
 	}
 
 }
