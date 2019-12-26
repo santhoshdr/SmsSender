@@ -23,6 +23,7 @@ import org.springframework.stereotype.Repository;
 
 import com.sun.mail.smtp.SMTPTransport;
 
+import net.drs.common.notifier.NotificationDataConstants;
 import net.drs.common.notifier.NotificationRequest;
 import net.drs.common.notifier.NotificationTemplate;
 import net.drs.myapp.model.Email;
@@ -40,24 +41,29 @@ public class SendNotificationImpl implements ISendNotification {
     @Value("${email.new.registration.message}")
     private String newRegistrationMessage;
 
+    @Value("${email.forgot.password.message}")
+    private String forgotPasswordMessage;
+
+    @Value("${email.change.password.message}")
+    private String changePasswordMessage;
+
     @Override
     public void sendSMSNotification(NotificationRequest notificationRequest) {
         int result = entityManager.createNativeQuery("update email_notification set EMAIL_MESSAGE_SENT = 'true' where id=:id").setParameter("id", notificationRequest.getNotificationId())
                 .executeUpdate();
-        System.out.println("RESULT " + result);
     }
 
     @Override
     public void sendEmailNotification(NotificationRequest notificationRequest) throws Exception {
 
         NotificationTemplate template = notificationRequest.getNotificationTemplate();
-        String activationLink = notificationRequest.getData().get("ACTIVATION_LINK");
+        String temperoryActivationString = notificationRequest.getData().get(NotificationDataConstants.TEMPERORY_ACTIVATION_STRING);
+        String user_name = notificationRequest.getData().get(NotificationDataConstants.USER_NAME);
 
         String emailmessage;
         switch (template) {
         case NEW_REGISTRATION:
-            emailmessage = newRegistrationMessage;
-            emailmessage = String.format(newRegistrationMessage, notificationRequest.getEmailid(), activationLink);
+            emailmessage = String.format(newRegistrationMessage, user_name, temperoryActivationString);
             notificationRequest.setEmailContent(emailmessage);
             break;
         case FORGOT_PASSWORD:
@@ -65,9 +71,7 @@ public class SendNotificationImpl implements ISendNotification {
         case CHANGE_PASSWORD:
             break;
         }
-
         int result = sendEmail(notificationRequest);
-
         Email email = entityManager.find(net.drs.myapp.model.Email.class, notificationRequest.getNotificationId());
         email.setNeedtoSendEmail(false);
         email.setUpdatedBy("SYSTEM");
@@ -75,13 +79,9 @@ public class SendNotificationImpl implements ISendNotification {
         email.setUpdatedDate(new java.sql.Date(System.currentTimeMillis()));
         email.setEmailresponse(Integer.toString(result));
         entityManager.persist(email);
-
-        System.out.println("RESULT " + result);
     }
 
     private int sendEmail(NotificationRequest notificationRequest) throws Exception {
-
-        String toAddress = notificationRequest.getEmailid();
         Properties prop = System.getProperties();
         prop.put("mail.smtp.auth", "true");
         prop.put("mail.smtp.port", "587");
@@ -100,20 +100,15 @@ public class SendNotificationImpl implements ISendNotification {
             // https://myaccount.google.com/lesssecureapps?pli=1 is turned on .
             // this should be off for security
             t.sendMessage(msg, msg.getAllRecipients());
-            if (t.getLastReturnCode() == 250) {
-                System.out.println("Email has been sent successfully");
-            } else {
-                System.out.println("Email has not been sent successfully" + t.getLastReturnCode());
-            }
+            return t.getLastReturnCode();
         } catch (AddressException e) {
             throw new Exception("Unable to send Email", e);
         } catch (MessagingException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
+            throw new Exception("Unable to send Email", e);
         } finally {
             t.close();
         }
-        return t.getLastReturnCode();
     }
 
     static class HTMLDataSource implements DataSource {
