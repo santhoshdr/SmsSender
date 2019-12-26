@@ -24,6 +24,8 @@ import org.springframework.stereotype.Repository;
 import com.sun.mail.smtp.SMTPTransport;
 
 import net.drs.common.notifier.NotificationRequest;
+import net.drs.common.notifier.NotificationTemplate;
+import net.drs.myapp.model.Email;
 
 @Repository("sendNotification")
 @Transactional
@@ -35,6 +37,9 @@ public class SendNotificationImpl implements ISendNotification {
     @Value("${email.from.address}")
     private String fromEmailAddress;
 
+    @Value("${email.new.registration.message}")
+    private String newRegistrationMessage;
+
     @Override
     public void sendSMSNotification(NotificationRequest notificationRequest) {
         int result = entityManager.createNativeQuery("update email_notification set EMAIL_MESSAGE_SENT = 'true' where id=:id").setParameter("id", notificationRequest.getNotificationId())
@@ -44,15 +49,33 @@ public class SendNotificationImpl implements ISendNotification {
 
     @Override
     public void sendEmailNotification(NotificationRequest notificationRequest) throws Exception {
+
+        NotificationTemplate template = notificationRequest.getNotificationTemplate();
+        String activationLink = notificationRequest.getData().get("ACTIVATION_LINK");
+
+        String emailmessage;
+        switch (template) {
+        case NEW_REGISTRATION:
+            emailmessage = newRegistrationMessage;
+            emailmessage = String.format(newRegistrationMessage, notificationRequest.getEmailid(), activationLink);
+            notificationRequest.setEmailContent(emailmessage);
+            break;
+        case FORGOT_PASSWORD:
+            break;
+        case CHANGE_PASSWORD:
+            break;
+        }
+
         int result = sendEmail(notificationRequest);
-        /*
-         * Email email = entityManager.find(net.drs.myapp.model.Email.class,
-         * notificationRequest.getNotificationId());
-         * email.setNeedtoSendEmail(false); email.setUpdatedBy("SYSTEM");
-         * email.setUpdatedDate(new java.sql.Date(System.currentTimeMillis()));
-         * email.setEmailresponse(Integer.toString(result));
-         * entityManager.persist(email);
-         */
+
+        Email email = entityManager.find(net.drs.myapp.model.Email.class, notificationRequest.getNotificationId());
+        email.setNeedtoSendEmail(false);
+        email.setUpdatedBy("SYSTEM");
+        email.setEmailMessageSent(notificationRequest.getEmailContent());
+        email.setUpdatedDate(new java.sql.Date(System.currentTimeMillis()));
+        email.setEmailresponse(Integer.toString(result));
+        entityManager.persist(email);
+
         System.out.println("RESULT " + result);
     }
 
@@ -70,10 +93,10 @@ public class SendNotificationImpl implements ISendNotification {
         try {
             msg.setFrom(new InternetAddress("fromEmailAddress"));
             msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse("santhoshdesikulkarni@gmail.com", false));
-            msg.setSubject("Email subject");
-            msg.setDataHandler(new DataHandler(new HTMLDataSource("<h1>Hello Java Mail \\n ABC123</h1>")));
+            msg.setSubject("NEW REGISTRATION");
+            msg.setDataHandler(new DataHandler(new HTMLDataSource(notificationRequest.getEmailContent())));
             t = (SMTPTransport) session.getTransport("smtp");
-            t.connect("smtp.gmail.com", "myappn22eed@gmail.com", "Santhosh@123");
+            t.connect("smtp.gmail.com", "myappneed@gmail.com", "Santhosh@123");
             // https://myaccount.google.com/lesssecureapps?pli=1 is turned on .
             // this should be off for security
             t.sendMessage(msg, msg.getAllRecipients());
