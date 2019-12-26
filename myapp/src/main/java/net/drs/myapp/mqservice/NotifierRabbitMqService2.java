@@ -7,13 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
+
 import javax.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -26,14 +25,15 @@ import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.DeliverCallback;
 import com.rabbitmq.client.Envelope;
 
+import net.drs.common.notifier.NotificationRequest;
 import net.drs.myapp.service.ISendNotification;
 
-@Component
-@Repository("rabbitMqService")
-@Transactional
-public class RabbitMqService implements IRabbitMqService {
+//@Component
+//@Repository("rabbitMqService")
+//@Transactional
+public class NotifierRabbitMqService2 implements IRabbitMqService {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RabbitMqService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(NotifierRabbitMqService2.class);
 
     private static final String EXCHANGE_NAME = "pub-sub-queue";
 
@@ -42,15 +42,14 @@ public class RabbitMqService implements IRabbitMqService {
     @Autowired
     private ISendNotification sendNotification;
 
-    private static final String MQ_HOST = "172.17.0.3";
+    private static final String MQ_HOST = "142.93.223.247";
 
     private List<Channel> channels = new ArrayList<>();
-    
+
     private static final Map<String, Object> QUEUE_ARGS = new HashMap<>();
 
     @PostConstruct
     public void postConsrtuct() {
-
         MqUtils.manageCheckedExceptions(new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -59,6 +58,7 @@ public class RabbitMqService implements IRabbitMqService {
             }
         });
     }
+
     public void initializeMq() {
         try {
             receiveSMSMQMessage();
@@ -73,6 +73,7 @@ public class RabbitMqService implements IRabbitMqService {
         LOG.info("Publishing message to MQ: SMS message {} , number {} ", smsmessage, number);
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(MQ_HOST);
+        factory.setPort(5672);
         Map<String, String> message = new HashMap<String, String>();
         message.put(number, smsmessage);
         try (Connection connection = factory.newConnection(); Channel channel = connection.createChannel()) {
@@ -84,13 +85,18 @@ public class RabbitMqService implements IRabbitMqService {
         }
     }
 
-    public String receiveSMSMQMessage() {
+    public String receiveSMSMQMessage() throws Exception {
 
         try {
             System.out.println(" Inside receiveSMSMQMessage ");
             ConnectionFactory factory = new ConnectionFactory();
             factory.setHost(MQ_HOST);
+            factory.setPort(15672);
+            factory.setUsername("appuser");
+            factory.setPassword("appuser");
+            factory.setVirtualHost("/");
             Connection connection;
+
             connection = factory.newConnection();
             Channel channel = connection.createChannel();
             channel.exchangeDeclare(EXCHANGE_NAME, BuiltinExchangeType.FANOUT);
@@ -106,7 +112,13 @@ public class RabbitMqService implements IRabbitMqService {
 
                 NotificationRequest notificationReq = DEFAULT_OBJECT_MAPPER.readValue(message, NotificationRequest.class);
 
-                sendNotification.sendSMSNotification(notificationReq);
+                try {
+                    sendNotification.sendSMSNotification(notificationReq);
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
                 System.out.println(notificationReq.getNotificationId());
                 System.out.println(notificationReq.getEmailid());
                 System.out.println(notificationReq.getTemplate());
@@ -118,9 +130,13 @@ public class RabbitMqService implements IRabbitMqService {
             e.printStackTrace();
         } catch (TimeoutException e) {
             e.printStackTrace();
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
         return null;
     }
+
     /*
      * private final class SmsMqConsumer extends DefaultConsumer {
      * 
@@ -132,7 +148,7 @@ public class RabbitMqService implements IRabbitMqService {
      * }; } }
      */
     public static void main(String args[]) {
-        RabbitMqService mq = new RabbitMqService();
+        NotifierRabbitMqService2 mq = new NotifierRabbitMqService2();
         mq.publishSMSMessage("hi", "asdasd");
     }
 
@@ -149,13 +165,17 @@ public class RabbitMqService implements IRabbitMqService {
 
                 @Override
                 public Void call() throws Exception {
-                    String event = new String(body, MqStatics.ENCODING);
-                    System.out.println("========================" + event);
-
-                    return null;
+                    String event = new String(body, MqStatics.UTF_8);
+                          return null;
                 }
             });
         }
+    }
+
+    @Override
+    public void publishSMSMessage(NotificationRequest notificationReq) {
+        // TODO Auto-generated method stub
+
     }
 
 }

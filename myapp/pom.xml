@@ -20,6 +20,25 @@
 	</properties>
 
 	<dependencies>
+		<!-- Email Service -->
+		<dependency>
+			<groupId>com.sun.mail</groupId>
+			<artifactId>javax.mail</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>common</groupId>
+			<artifactId>app.common</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
+
+<!-- 		<dependency>
+			<groupId>net.drs.myapp</groupId>
+			<artifactId>app</artifactId>
+			<version>app</version>
+		</dependency>
+ -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
@@ -37,6 +56,7 @@
 					<artifactId>spring-boot-starter-tomcat</artifactId>
 				</exclusion>
 			</exclusions>
+			 <scope>runtime</scope>
 		</dependency>
 
 		<dependency>
