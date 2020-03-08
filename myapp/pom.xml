@@ -25,7 +25,8 @@
 			<groupId>com.sun.mail</groupId>
 			<artifactId>javax.mail</artifactId>
 		</dependency>
-
+		<!-- SMS Service  -->
+		
 		<dependency>
 			<groupId>common</groupId>
 			<artifactId>app.common</artifactId>
